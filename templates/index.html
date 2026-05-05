@@ -1,24 +1,130 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark"
-
+<html lang="en" data-bs-theme="dark">
 <head>
-    <title>Chess</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
-    <link href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-dark@5/dark.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+  <meta charset="UTF-8">
+  <title>Menu</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark text-light">
+<nav class="navbar navbar-dark bg-black px-3">
+  <span class="navbar-brand">Chess + QTE</span>
+</nav>
 
-<body>
-    <div class="App">
-        <header class="App-header">
-            <p>
-                GitHub Codespaces <span class="heart">♥️</span> Flask Template
-            </p>
-            <p class="small">
-                Edit <code>templates/index.html</code> and refresh to see your changes!
-            </p>
-        </header>
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-md-6 mb-4">
+      <h3>Settings</h3>
+
+      <div class="mb-3">
+        <label class="form-label">Difficulty</label>
+        <select id="difficulty" class="form-select">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Keybind Preset</label>
+        <select id="keybind-preset" class="form-select">
+          <option value="WASD">WASD</option>
+          <option value="ARROWS">Arrows</option>
+          <option value="CUSTOM">Custom</option>
+        </select>
+      </div>
+
+      <div id="custom-keys" class="border rounded p-3 mb-3" style="display:none;">
+        <h5>Custom Keybinds</h5>
+        <div class="mb-2">
+          <label class="form-label">Up</label>
+          <input id="key-up" class="form-control" placeholder="Press a key" readonly>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Down</label>
+          <input id="key-down" class="form-control" placeholder="Press a key" readonly>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Left</label>
+          <input id="key-left" class="form-control" placeholder="Press a key" readonly>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Right</label>
+          <input id="key-right" class="form-control" placeholder="Press a key" readonly>
+        </div>
+      </div>
+
+      <button id="save-settings" class="btn btn-success">Save Settings</button>
+      <div id="save-status" class="mt-2 text-info"></div>
     </div>
-</body>
 
+    <div class="col-md-6 mb-4">
+      <h3>Play</h3>
+      <p>Choose a mode:</p>
+      <a href="chess.html" class="btn btn-primary w-100 mb-2">Play Chess + QTE</a>
+      <a href="qte.html" class="btn btn-secondary w-100">Practice QTE Minigame</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const defaultKeymaps = {
+  WASD: { Up: "w", Down: "s", Left: "a", Right: "d" },
+  ARROWS: { Up: "ArrowUp", Down: "ArrowDown", Left: "ArrowLeft", Right: "ArrowRight" }
+};
+
+function loadSettings() {
+  const stored = JSON.parse(localStorage.getItem("qteSettings") || "{}");
+  document.getElementById("difficulty").value = stored.difficulty || "medium";
+  const preset = stored.preset || "WASD";
+  document.getElementById("keybind-preset").value = preset;
+
+  if (preset === "CUSTOM") {
+    document.getElementById("custom-keys").style.display = "block";
+    const keys = stored.customKeys || {};
+    document.getElementById("key-up").value = keys.Up || "";
+    document.getElementById("key-down").value = keys.Down || "";
+    document.getElementById("key-left").value = keys.Left || "";
+    document.getElementById("key-right").value = keys.Right || "";
+  }
+}
+
+document.getElementById("keybind-preset").addEventListener("change", () => {
+  const preset = document.getElementById("keybind-preset").value;
+  document.getElementById("custom-keys").style.display = preset === "CUSTOM" ? "block" : "none";
+});
+
+["key-up","key-down","key-left","key-right"].forEach(id => {
+  const input = document.getElementById(id);
+  input.addEventListener("focus", () => {
+    input.value = "";
+  });
+  input.addEventListener("keydown", (e) => {
+    e.preventDefault();
+    input.value = e.key;
+  });
+});
+
+document.getElementById("save-settings").addEventListener("click", () => {
+  const difficulty = document.getElementById("difficulty").value;
+  const preset = document.getElementById("keybind-preset").value;
+  let customKeys = null;
+
+  if (preset === "CUSTOM") {
+    customKeys = {
+      Up: document.getElementById("key-up").value || "w",
+      Down: document.getElementById("key-down").value || "s",
+      Left: document.getElementById("key-left").value || "a",
+      Right: document.getElementById("key-right").value || "d"
+    };
+  }
+
+  const settings = { difficulty, preset, customKeys };
+  localStorage.setItem("qteSettings", JSON.stringify(settings));
+  document.getElementById("save-status").textContent = "Settings saved.";
+  setTimeout(() => document.getElementById("save-status").textContent = "", 2000);
+});
+
+loadSettings();
+</script>
+</body>
 </html>
