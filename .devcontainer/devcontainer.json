@@ -41,6 +41,5 @@
       },
       "postCreateCommand": "pip install flask flask-admin sqlalchemy sqlite3",
     },
-    "forwardPorts": [5000]
-  }
-  
+  "forwardPorts": [5000]
+}
