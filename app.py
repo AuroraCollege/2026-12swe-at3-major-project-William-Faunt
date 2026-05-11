@@ -1,8 +1,20 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from chess_logic import Game, choose_ai_move, ai_qte_score
 
 app = Flask(__name__)
 games = {}
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/chess')
+def chess():
+    return render_template('chess.html')
+
+@app.route('/qte', endpoint='qte_page')
+def qte():
+    return render_template('qte.html')
 
 @app.post("/api/new_game")
 def new_game():
@@ -50,4 +62,4 @@ def ai_move(gid):
     return jsonify({"state": game.to_dict()})
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5002)

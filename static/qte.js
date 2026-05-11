@@ -39,18 +39,30 @@ document.getElementById("qte-hint").textContent =
   `Press: ${Object.entries(qteSettings.keymap).map(([dir,key]) => `${dir}=${key}`).join("  ")}`;
 
 document.getElementById("start-qte").addEventListener("click", () => {
-  startQTE();
+  if (!qteActive) {
+    // Reset scores for new rally
+    qteScore = 0;
+    qteHits = 0;
+    qteMisses = 0;
+    qteCombo = 0;
+    qteMaxCombo = 0;
+  }
+  startRally();
 });
 
-function startQTE() {
+document.getElementById("stop-qte").addEventListener("click", () => {
+  stopRally();
+});
+
+function startRally() {
   qteSequence = Array.from({length: 10}, () => DIRECTIONS[Math.floor(Math.random()*DIRECTIONS.length)]);
   qteIndex = 0;
   qteActive = true;
-  qteScore = 0;
-  qteHits = 0;
-  qteMisses = 0;
-  qteCombo = 0;
-  qteMaxCombo = 0;
+  // Don't reset scores for rally, keep cumulative
+  // qteScore = 0; etc. removed
+
+  document.getElementById("start-qte").style.display = "none";
+  document.getElementById("stop-qte").style.display = "inline-block";
 
   updateQteScoreDisplay();
   renderQTEWindow();
@@ -133,18 +145,30 @@ function registerMiss() {
 function nextPromptOrFinish() {
   qteIndex++;
   if (qteIndex >= qteSequence.length) {
-    qteActive = false;
+    // Start new sequence for rally
+    startRally();
   } else {
     renderQTEWindow();
     startPromptTimer();
   }
 }
 
-function updateQteScoreDisplay() {
-  const total = qteHits + qteMisses;
-  const acc = total === 0 ? 0 : Math.round((qteHits / total) * 100);
-  document.getElementById("qte-score-value").textContent = qteScore;
-  document.getElementById("qte-combo").textContent = qteCombo;
-  document.getElementById("qte-max-combo").textContent = qteMaxCombo;
-  document.getElementById("qte-accuracy").textContent = acc;
+function stopRally() {
+  qteActive = false;
+  if (qteTimerId) {
+    cancelAnimationFrame(qteTimerId);
+    qteTimerId = null;
+  }
+  document.getElementById("start-qte").style.display = "inline-block";
+  document.getElementById("stop-qte").style.display = "none";
+}
+
+function stopRally() {
+  qteActive = false;
+  if (qteTimerId) {
+    cancelAnimationFrame(qteTimerId);
+    qteTimerId = null;
+  }
+  document.getElementById("start-qte").style.display = "inline-block";
+  document.getElementById("stop-qte").style.display = "none";
 }
