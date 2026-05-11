@@ -35,23 +35,35 @@ let qteMaxCombo = 0;
 const sHit = new Audio();
 const sMiss = new Audio();
 
-document.getElementById("qte-hint").textContent =
-  `Press: ${Object.entries(qteSettings.keymap).map(([dir,key]) => `${dir}=${key}`).join("  ")}`;
-
-document.getElementById("start-qte").addEventListener("click", () => {
-  if (!qteActive) {
-    // Reset scores for new rally
-    qteScore = 0;
-    qteHits = 0;
-    qteMisses = 0;
-    qteCombo = 0;
-    qteMaxCombo = 0;
+// Wait for DOM to be ready
+document.addEventListener("DOMContentLoaded", () => {
+  const hintEl = document.getElementById("qte-hint");
+  if (hintEl) {
+    hintEl.textContent =
+      `Press: ${Object.entries(qteSettings.keymap).map(([dir,key]) => `${dir}=${key}`).join("  ")}`;
   }
-  startRally();
-});
 
-document.getElementById("stop-qte").addEventListener("click", () => {
-  stopRally();
+  const startBtn = document.getElementById("start-qte");
+  if (startBtn) {
+    startBtn.addEventListener("click", () => {
+      if (!qteActive) {
+        // Reset scores for new rally
+        qteScore = 0;
+        qteHits = 0;
+        qteMisses = 0;
+        qteCombo = 0;
+        qteMaxCombo = 0;
+      }
+      startRally();
+    });
+  }
+
+  const stopBtn = document.getElementById("stop-qte");
+  if (stopBtn) {
+    stopBtn.addEventListener("click", () => {
+      stopRally();
+    });
+  }
 });
 
 function startRally() {
@@ -153,14 +165,13 @@ function nextPromptOrFinish() {
   }
 }
 
-function stopRally() {
-  qteActive = false;
-  if (qteTimerId) {
-    cancelAnimationFrame(qteTimerId);
-    qteTimerId = null;
-  }
-  document.getElementById("start-qte").style.display = "inline-block";
-  document.getElementById("stop-qte").style.display = "none";
+function updateQteScoreDisplay() {
+  const total = qteHits + qteMisses;
+  const acc = total === 0 ? 0 : Math.round((qteHits / total) * 100);
+  document.getElementById("qte-score-value").textContent = qteScore;
+  document.getElementById("qte-combo").textContent = qteCombo;
+  document.getElementById("qte-max-combo").textContent = qteMaxCombo;
+  document.getElementById("qte-accuracy").textContent = acc;
 }
 
 function stopRally() {
