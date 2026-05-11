@@ -43,7 +43,7 @@
   </style>
 </head>
 <body class="bg-dark text-light">
-<nav class="navbar navbar-dark bg-black px-3">
+<nav class="navbar navbar-dark bg-success px-3">
   <a href="/" class="navbar-brand">← Menu</a>
   <span class="navbar-text">QTE Practice</span>
 </nav>
@@ -51,6 +51,29 @@
 <div class="container" id="qte-area">
   <h2>QTE Minigame</h2>
   <p>Hit the correct key before the bar runs out.</p>
+
+  <div class="mb-3" id="custom-keys-section">
+    <h5>Custom Keybinds</h5>
+    <div class="row">
+      <div class="col-md-3">
+        <label class="form-label">Up</label>
+        <input id="key-up" class="form-control" maxlength="1" placeholder="Key" style="max-width: 60px;">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Down</label>
+        <input id="key-down" class="form-control" maxlength="1" placeholder="Key" style="max-width: 60px;">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Left</label>
+        <input id="key-left" class="form-control" maxlength="1" placeholder="Key" style="max-width: 60px;">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Right</label>
+        <input id="key-right" class="form-control" maxlength="1" placeholder="Key" style="max-width: 60px;">
+      </div>
+    </div>
+    <button id="save-keys" class="btn btn-secondary mt-2">Save Custom Keys</button>
+  </div>
 
   <div id="qte-container"></div>
   <div id="qte-bar-wrapper"><div id="qte-bar"></div></div>
@@ -68,6 +91,221 @@
   </div>
 </div>
 
-<script src="qte.js"></script>
+<script>
+  function loadQteSettings() {
+  const stored = JSON.parse(localStorage.getItem("qteSettings") || "{}");
+  const difficulty = stored.difficulty || "medium";
+  const preset = stored.preset || "WASD";
+  let keymap;
+  if (preset === "CUSTOM" && stored.customKeys) {
+    keymap = stored.customKeys;
+  } else if (preset === "ARROWS") {
+    keymap = { Up: "ArrowUp", Down: "ArrowDown", Left: "ArrowLeft", Right: "ArrowRight" };
+  } else {
+    keymap = { Up: "w", Down: "s", Left: "a", Right: "d" };
+  }
+  let duration;
+  if (difficulty === "easy") duration = 1200;
+  else if (difficulty === "hard") duration = 600;
+  else duration = 900;
+  return { difficulty, keymap, duration };
+}
+
+const qteSettings = loadQteSettings();
+const DIRECTIONS = ["Up","Down","Left","Right"];
+
+let qteSequence = [];
+let qteIndex = 0;
+let qteActive = false;
+let qteStartTime = 0;
+let qteDuration = qteSettings.duration;
+let qteTimerId = null;
+let qteScore = 0;
+let qteHits = 0;
+let qteMisses = 0;
+let qteCombo = 0;
+let qteMaxCombo = 0;
+
+const sHit = new Audio();
+const sMiss = new Audio();
+
+// Wait for DOM to be ready
+document.addEventListener("DOMContentLoaded", () => {
+  const hintEl = document.getElementById("qte-hint");
+  if (hintEl) {
+    hintEl.textContent =
+      `Press: ${Object.entries(qteSettings.keymap).map(([dir,key]) => `${dir}=${key}`).join("  ")}`;
+  }
+
+  // Load custom keys into inputs
+  const stored = JSON.parse(localStorage.getItem("qteSettings") || "{}");
+  const customKeys = stored.customKeys || {};
+  document.getElementById("key-up").value = customKeys.Up || "w";
+  document.getElementById("key-down").value = customKeys.Down || "s";
+  document.getElementById("key-left").value = customKeys.Left || "a";
+  document.getElementById("key-right").value = customKeys.Right || "d";
+
+  const startBtn = document.getElementById("start-qte");
+  if (startBtn) {
+    startBtn.addEventListener("click", () => {
+      if (!qteActive) {
+        // Reset scores for new rally
+        qteScore = 0;
+        qteHits = 0;
+        qteMisses = 0;
+        qteCombo = 0;
+        qteMaxCombo = 0;
+      }
+      startRally();
+    });
+  }
+
+  const stopBtn = document.getElementById("stop-qte");
+  if (stopBtn) {
+    stopBtn.addEventListener("click", () => {
+      stopRally();
+    });
+  }
+
+  const saveBtn = document.getElementById("save-keys");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => {
+      const customKeys = {
+        Up: document.getElementById("key-up").value || "w",
+        Down: document.getElementById("key-down").value || "s",
+        Left: document.getElementById("key-left").value || "a",
+        Right: document.getElementById("key-right").value || "d"
+      };
+      const settings = JSON.parse(localStorage.getItem("qteSettings") || "{}");
+      settings.customKeys = customKeys;
+      settings.preset = "CUSTOM";
+      localStorage.setItem("qteSettings", JSON.stringify(settings));
+      // Reload settings
+      window.location.reload();
+    });
+  }
+});
+
+function startRally() {
+  qteSequence = Array.from({length: 10}, () => DIRECTIONS[Math.floor(Math.random()*DIRECTIONS.length)]);
+  qteIndex = 0;
+  qteActive = true;
+  // Don't reset scores for rally, keep cumulative
+  // qteScore = 0; etc. removed
+
+  document.getElementById("custom-keys-section").style.display = "none";
+  document.getElementById("start-qte").style.display = "none";
+  document.getElementById("stop-qte").style.display = "inline-block";
+
+  updateQteScoreDisplay();
+  renderQTEWindow();
+  startPromptTimer();
+}
+
+function renderQTEWindow() {
+  const container = document.getElementById("qte-container");
+  container.innerHTML = "";
+
+  const windowSize = 3;
+  for (let i = 0; i < windowSize + 1; i++) {
+    const idx = qteIndex + i;
+    if (idx >= qteSequence.length) break;
+    const div = document.createElement("div");
+    div.classList.add("qte-prompt");
+    if (i === 0) div.classList.add("active-prompt");
+    div.textContent = qteSettings.keymap[qteSequence[idx]];
+    container.appendChild(div);
+  }
+}
+
+function startPromptTimer() {
+  qteStartTime = performance.now();
+  const bar = document.getElementById("qte-bar");
+  bar.style.width = "100%";
+
+  if (qteTimerId) cancelAnimationFrame(qteTimerId);
+  const step = () => {
+    if (!qteActive) return;
+    const elapsed = performance.now() - qteStartTime;
+    const ratio = 1 - elapsed / qteDuration;
+    bar.style.width = Math.max(0, ratio * 100) + "%";
+    if (elapsed >= qteDuration) {
+      registerMiss();
+      nextPromptOrFinish();
+    } else {
+      qteTimerId = requestAnimationFrame(step);
+    }
+  };
+  qteTimerId = requestAnimationFrame(step);
+}
+
+document.addEventListener("keydown", (e) => {
+  if (!qteActive) return;
+  const currentPrompt = qteSequence[qteIndex];
+  const expectedKey = qteSettings.keymap[currentPrompt];
+
+  const elapsed = performance.now() - qteStartTime;
+  if (elapsed > qteDuration) return;
+
+  if (e.key === expectedKey) {
+    registerHit(elapsed);
+    nextPromptOrFinish();
+  }
+});
+
+function registerHit(elapsed) {
+  if (sHit) { try { sHit.currentTime = 0; sHit.play(); } catch(e){} }
+  qteHits++;
+  qteCombo++;
+  if (qteCombo > qteMaxCombo) qteMaxCombo = qteCombo;
+
+  const errorRatio = Math.abs(elapsed - qteDuration / 2) / (qteDuration / 2);
+  let points = 0;
+  if (errorRatio < 0.2) points = 100;
+  else if (errorRatio < 0.5) points = 70;
+  else points = 40;
+  qteScore += points;
+  updateQteScoreDisplay();
+}
+
+function registerMiss() {
+  if (sMiss) { try { sMiss.currentTime = 0; sMiss.play(); } catch(e){} }
+  qteMisses++;
+  qteCombo = 0;
+  updateQteScoreDisplay();
+}
+
+function nextPromptOrFinish() {
+  qteIndex++;
+  if (qteIndex >= qteSequence.length) {
+    // Start new sequence for rally
+    startRally();
+  } else {
+    renderQTEWindow();
+    startPromptTimer();
+  }
+}
+
+function updateQteScoreDisplay() {
+  const total = qteHits + qteMisses;
+  const acc = total === 0 ? 0 : Math.round((qteHits / total) * 100);
+  document.getElementById("qte-score-value").textContent = qteScore;
+  document.getElementById("qte-combo").textContent = qteCombo;
+  document.getElementById("qte-max-combo").textContent = qteMaxCombo;
+  document.getElementById("qte-accuracy").textContent = acc;
+}
+
+function stopRally() {
+  qteActive = false;
+  if (qteTimerId) {
+    cancelAnimationFrame(qteTimerId);
+    qteTimerId = null;
+  }
+  document.getElementById("custom-keys-section").style.display = "block";
+  document.getElementById("start-qte").style.display = "inline-block";
+  document.getElementById("stop-qte").style.display = "none";
+}
+
+</script>
 </body>
 </html>
