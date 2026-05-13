@@ -193,6 +193,46 @@ class Game:
         self.difficulty = difficulty
         self.pending_qte = None
 
+    def _king_status(self):
+        return self.board.king(chess.WHITE), self.board.king(chess.BLACK)
+
+    def get_game_status(self):
+        white_king, black_king = self._king_status()
+        if white_king is None or black_king is None:
+            winner = "white" if black_king is None else "black" if white_king is None else None
+            return {
+                "finished": True,
+                "result": "win" if winner else "draw",
+                "winner": winner,
+                "reason": "king_capture",
+            }
+
+        if self.board.is_game_over():
+            outcome = self.board.outcome()
+            if outcome is not None:
+                reason = outcome.termination.name.lower().replace("_", " ")
+                if outcome.winner is not None:
+                    return {
+                        "finished": True,
+                        "result": "win",
+                        "winner": "white" if outcome.winner else "black",
+                        "reason": reason,
+                    }
+                return {
+                    "finished": True,
+                    "result": "draw",
+                    "winner": None,
+                    "reason": reason,
+                }
+            return {
+                "finished": True,
+                "result": "draw",
+                "winner": None,
+                "reason": "game over",
+            }
+
+        return {"finished": False}
+
     def to_dict(self):
         return {
             "fen": self.board.fen(),
@@ -200,10 +240,14 @@ class Game:
             "pending_qte": bool(self.pending_qte),
             "mode": self.mode,
             "ai_side": self.ai_side,
+            "game_status": self.get_game_status(),
         }
 
     def try_move(self, move_uci):
         move = chess.Move.from_uci(move_uci)
+
+        if self.get_game_status()["finished"]:
+            return {"type": "finished", "status": self.get_game_status()}
 
         if move not in self.board.legal_moves:
             return {"type": "illegal"}
@@ -248,7 +292,11 @@ class Game:
             self.board.push(move)
             winner = attacker
         else:
-            self.board.remove_piece_at(move.from_square)
+            defender_piece = self.board.piece_at(move.to_square)
+            if defender_piece is not None:
+                self.board.remove_piece_at(move.to_square)
+                self.board.remove_piece_at(move.from_square)
+                self.board.set_piece_at(move.from_square, defender_piece)
             winner = defender
 
         self.pending_qte = None

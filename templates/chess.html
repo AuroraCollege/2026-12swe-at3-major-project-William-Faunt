@@ -21,10 +21,55 @@
       font-size: 36px;
       cursor: pointer;
       user-select: none;
+      box-sizing: border-box;
     }
     .light { background: #b59a7a; }
     .dark { background: #6b4f3f; }
-    .selected { outline: 3px solid yellow; }
+    .selected {
+      box-shadow: inset 0 0 0 4px yellow;
+    }
+
+    .qte-player-column {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 160px;
+    }
+
+    .qte-player-title {
+      font-size: 18px;
+      color: #ddd;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .qte-player-upcoming {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .qte-player-upcoming .qte-prompt {
+      background: #222;
+      font-size: 18px;
+      padding: 8px 12px;
+    }
+
+    #promotion-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+    }
+
+    .promotion-button {
+      min-width: 60px;
+    }
 
     #qte-overlay {
       position: fixed;
@@ -69,6 +114,13 @@
     #qte-score {
       margin-top: 0.5rem;
     }
+    .center-page {
+      min-height: calc(100vh - 90px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
   </style>
 </head>
 <body class="bg-dark text-light">
@@ -77,18 +129,31 @@
   <span class="navbar-text">Chess + QTE</span>
 </nav>
 
-<div class="container mt-4">
-  <div class="d-flex gap-2 mb-3">
+<div class="container mt-4 center-page">
+  <div class="d-flex gap-2 mb-3 justify-content-center">
     <button id="new-pvc" class="btn btn-primary">New PvC (AI Black)</button>
     <button id="new-pvp" class="btn btn-secondary">New PvP</button>
   </div>
 
   <div id="board"></div>
-  <div id="info" class="mt-3 fs-5"></div>
+  <div id="info" class="mt-3 fs-5 text-center"></div>
 </div>
 
 <div id="qte-overlay">
   <h2 class="mb-3">Battle!</h2>
+  <div id="qte-player-bars" class="w-100 mb-3">
+    <div class="d-flex justify-content-between mb-2">
+      <div><strong>Defender</strong> <span id="qte-defender-label">?</span></div>
+      <div><strong>Attacker</strong> <span id="qte-attacker-label">?</span></div>
+    </div>
+    <div class="progress" style="height: 24px; background: #8b0000; border-radius: 12px; overflow: hidden;">
+      <div id="qte-shared-bar" style="width: 50%; height: 100%; background: #28a745; transition: width 0.2s ease;"></div>
+    </div>
+    <div class="d-flex justify-content-between mt-2 text-light small">
+      <div>Defender: <span id="qte-defender-score">0</span></div>
+      <div>Attacker: <span id="qte-attacker-score">0</span></div>
+    </div>
+  </div>
   <div id="qte-container"></div>
   <div id="qte-bar-wrapper"><div id="qte-bar"></div></div>
   <p id="qte-hint" class="text-info mb-1"></p>
@@ -96,6 +161,18 @@
     <div>Score: <span id="qte-score-value">0</span></div>
     <div>Combo: <span id="qte-combo">0</span> | Max Combo: <span id="qte-max-combo">0</span></div>
     <div>Accuracy: <span id="qte-accuracy">0</span>%</div>
+  </div>
+</div>
+
+<div id="promotion-overlay" style="display:none; position:fixed; inset:0; z-index:3000; background:rgba(0,0,0,0.9); align-items:center; justify-content:center;">
+  <div class="bg-black rounded-3 border border-secondary p-4 text-center" style="min-width:280px;">
+    <h3 id="promotion-title" class="mb-3">Promote pawn</h3>
+    <div class="d-flex gap-2 justify-content-center">
+      <button type="button" class="btn btn-light promotion-button" data-piece="q">Queen</button>
+      <button type="button" class="btn btn-light promotion-button" data-piece="r">Rook</button>
+      <button type="button" class="btn btn-light promotion-button" data-piece="b">Bishop</button>
+      <button type="button" class="btn btn-light promotion-button" data-piece="n">Knight</button>
+    </div>
   </div>
 </div>
 
@@ -120,6 +197,11 @@
 }
 
 const qteSettings = loadQteSettings();
+const PVP_KEYMAPS = {
+  attacker: { Up: "w", Down: "s", Left: "a", Right: "d" },
+  defender: { Up: "ArrowUp", Down: "ArrowDown", Left: "ArrowLeft", Right: "ArrowRight" }
+};
+const ALL_PVP_KEYS = [...Object.values(PVP_KEYMAPS.attacker), ...Object.values(PVP_KEYMAPS.defender)];
 
 let gameId = null;
 let gameState = null;
@@ -130,7 +212,16 @@ let mode = "pvc";
 let qteSequence = [];
 let qteIndex = 0;
 let qteActive = false;
+let qteMode = "normal";
+let qtePrompt = null;
+let qteQueue = [];
+let qteAttackerPrompt = null;
+let qteAttackerQueue = [];
+let qteDefenderPrompt = null;
+let qteDefenderQueue = [];
 let qteStartTime = 0;
+let qteSessionStart = 0;
+let qteSessionDuration = 0;
 let qteDuration = qteSettings.duration;
 let qteTimerId = null;
 let qteScore = 0;
@@ -138,6 +229,19 @@ let qteHits = 0;
 let qteMisses = 0;
 let qteCombo = 0;
 let qteMaxCombo = 0;
+let qteAttackerScore = 0;
+let qteDefenderScore = 0;
+let qteAttackerHits = 0;
+let qteDefenderHits = 0;
+let qteAttackerMisses = 0;
+let qteDefenderMisses = 0;
+let qteAttackerCombo = 0;
+let qteDefenderCombo = 0;
+let qteAttackerMaxCombo = 0;
+let qteDefenderMaxCombo = 0;
+let qteAttackerColor = null;
+let qteDefenderColor = null;
+let qteSharedPosition = 50;
 
 // Sounds (you can replace with real files)
 const sHit = new Audio();
@@ -178,10 +282,19 @@ async function loadState() {
   const res = await fetch(`/api/state/${gameId}`);
   gameState = await res.json();
   renderBoard(gameState.fen);
-  document.getElementById("info").textContent =
-    `Turn: ${gameState.turn} | Mode: ${gameState.mode}`;
 
-  if (mode === "pvc" && gameState.turn === gameState.ai_side) {
+  const status = gameState.game_status || { finished: false };
+  if (status.finished) {
+    const outcome = status.result === "win"
+      ? `${status.winner} wins by ${status.reason}`
+      : `Draw by ${status.reason}`;
+    document.getElementById("info").textContent = `${outcome}`;
+  } else {
+    document.getElementById("info").textContent =
+      `Turn: ${gameState.turn} | Mode: ${gameState.mode}`;
+  }
+
+  if (!status.finished && mode === "pvc" && gameState.turn === gameState.ai_side) {
     await aiMove();
   }
 }
@@ -219,14 +332,69 @@ function createSquare(r, file, piece) {
   return sq;
 }
 
+function parseFenPieceMap(fen) {
+  const rows = fen.split(" ")[0].split("/");
+  const map = {};
+  for (let r = 0; r < 8; r++) {
+    let file = 0;
+    for (const char of rows[r]) {
+      if (isNaN(char)) {
+        const coord = "abcdefgh"[file] + (8 - r);
+        map[coord] = char;
+        file++;
+      } else {
+        file += parseInt(char, 10);
+      }
+    }
+  }
+  return map;
+}
+
+function getPieceAtSquare(square) {
+  if (!gameState || !gameState.fen) return null;
+  const map = parseFenPieceMap(gameState.fen);
+  return map[square] || null;
+}
+
+function isPromotionMove(from, to) {
+  const piece = getPieceAtSquare(from);
+  if (!piece) return false;
+  if (piece === "P" && to[1] === "8") return true;
+  if (piece === "p" && to[1] === "1") return true;
+  return false;
+}
+
+function choosePromotionPiece(piece) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById("promotion-overlay");
+    const title = document.getElementById("promotion-title");
+    title.textContent = `Promote ${piece.toUpperCase()} pawn`;
+    overlay.style.display = "flex";
+
+    const buttons = overlay.querySelectorAll(".promotion-button");
+    buttons.forEach((button) => {
+      button.onclick = () => {
+        overlay.style.display = "none";
+        resolve(button.dataset.piece);
+      };
+    });
+  });
+}
+
 async function onSquareClick(coord, element) {
-  if (!gameId || qteActive) return;
+  if (!gameId || qteActive || (gameState && gameState.game_status && gameState.game_status.finished)) return;
 
   if (!selectedSquare) {
     selectedSquare = coord;
     element.classList.add("selected");
   } else {
-    const move = selectedSquare + coord;
+    let move = selectedSquare + coord;
+    if (isPromotionMove(selectedSquare, coord)) {
+      const piece = getPieceAtSquare(selectedSquare);
+      const promotion = await choosePromotionPiece(piece || "P");
+      if (!promotion) return;
+      move += promotion;
+    }
     clearSelection();
     selectedSquare = null;
     await sendMove(move);
@@ -241,7 +409,9 @@ async function sendMove(move) {
   const data = await apiPost(`/api/move/${gameId}`, { move });
 
   if (data.type === "qte") {
-    startQTE(data.sequence);
+    const attackerColor = gameState.turn;
+    const defenderColor = attackerColor === "white" ? "black" : "white";
+    startQTE(data.sequence, mode === "pvp" ? "pvp" : "normal", { attacker_color: attackerColor, defender_color: defenderColor });
   } else {
     await loadState();
   }
@@ -250,34 +420,111 @@ async function sendMove(move) {
 async function aiMove() {
   const data = await apiPost(`/api/ai_move/${gameId}`, {});
   if (data.type === "qte") {
-    startQTE(data.sequence);
+    startQTE(data.sequence, "normal", { attacker_color: gameState.turn, defender_color: gameState.turn === "white" ? "black" : "white" });
   } else {
     await loadState();
   }
 }
 
-function startQTE(sequence) {
-  qteSequence = sequence;
-  qteIndex = 0;
+function randomDirection() {
+  return ["Up", "Down", "Left", "Right"][Math.floor(Math.random() * 4)];
+}
+
+function startQTE(sequence, type = "normal", meta = {}) {
+  qteMode = type;
   qteActive = true;
   qteScore = 0;
   qteHits = 0;
   qteMisses = 0;
   qteCombo = 0;
   qteMaxCombo = 0;
+  qteAttackerScore = 0;
+  qteDefenderScore = 0;
+  qteAttackerHits = 0;
+  qteDefenderHits = 0;
+  qteAttackerMisses = 0;
+  qteDefenderMisses = 0;
+  qteAttackerCombo = 0;
+  qteDefenderCombo = 0;
+  qteAttackerMaxCombo = 0;
+  qteDefenderMaxCombo = 0;
+  qteAttackerColor = meta.attacker_color;
+  qteDefenderColor = meta.defender_color;
+  qteSharedPosition = 50;
 
   document.getElementById("qte-overlay").style.display = "flex";
-  document.getElementById("qte-hint").textContent =
-    `Press: ${Object.entries(qteSettings.keymap).map(([dir,key]) => `${dir}=${key}`).join("  ")}`;
+
+  if (qteMode === "pvp") {
+    qteSessionDuration = 10000 + Math.floor(Math.random() * 10001);
+    qteSessionStart = performance.now();
+    const sequenceList = Array.isArray(sequence) && sequence.length ? sequence : [];
+    qteAttackerPrompt = sequenceList[0] || randomDirection();
+    qteAttackerQueue = sequenceList.slice(1, 4);
+    while (qteAttackerQueue.length < 3) qteAttackerQueue.push(randomDirection());
+    qteDefenderPrompt = sequenceList[1] || randomDirection();
+    qteDefenderQueue = sequenceList.slice(2, 5);
+    while (qteDefenderQueue.length < 3) qteDefenderQueue.push(randomDirection());
+
+    document.getElementById("qte-hint").textContent =
+      `Attacker: WASD | Defender: Arrow keys | ${Math.round(qteSessionDuration / 1000)}s battle`;
+    document.getElementById("qte-attacker-label").textContent = qteAttackerColor;
+    document.getElementById("qte-defender-label").textContent = qteDefenderColor;
+  } else {
+    qteSequence = Array.isArray(sequence) ? sequence : [];
+    qteIndex = 0;
+    document.getElementById("qte-hint").textContent =
+      `Press: ${Object.entries(qteSettings.keymap).map(([dir, key]) => `${dir}=${key}`).join("  ")}`;
+    qtePrompt = null;
+    qteQueue = [];
+    qteAttackerPrompt = null;
+    qteAttackerQueue = [];
+    qteDefenderPrompt = null;
+    qteDefenderQueue = [];
+  }
 
   updateQteScoreDisplay();
+  updateSharedBar();
   renderQTEWindow();
   startPromptTimer();
+}
+
+function createPvpPanel(label, prompt, queue, color) {
+  const wrapper = document.createElement("div");
+  wrapper.classList.add("qte-player-column");
+
+  const title = document.createElement("div");
+  title.classList.add("qte-player-title");
+  title.textContent = `${label} (${color})`;
+  wrapper.appendChild(title);
+
+  const active = document.createElement("div");
+  active.classList.add("qte-prompt", "active-prompt");
+  active.textContent = prompt;
+  wrapper.appendChild(active);
+
+  const upcoming = document.createElement("div");
+  upcoming.classList.add("qte-player-upcoming");
+  queue.slice(0, 3).forEach((item) => {
+    const div = document.createElement("div");
+    div.classList.add("qte-prompt");
+    div.textContent = item;
+    upcoming.appendChild(div);
+  });
+  wrapper.appendChild(upcoming);
+  return wrapper;
 }
 
 function renderQTEWindow() {
   const container = document.getElementById("qte-container");
   container.innerHTML = "";
+
+  if (qteMode === "pvp") {
+    const attackerPanel = createPvpPanel("Attacker", qteAttackerPrompt, qteAttackerQueue, qteAttackerColor);
+    const defenderPanel = createPvpPanel("Defender", qteDefenderPrompt, qteDefenderQueue, qteDefenderColor);
+    container.appendChild(attackerPanel);
+    container.appendChild(defenderPanel);
+    return;
+  }
 
   const windowSize = 3;
   for (let i = 0; i < windowSize + 1; i++) {
@@ -289,6 +536,23 @@ function renderQTEWindow() {
     div.textContent = qteSequence[idx];
     container.appendChild(div);
   }
+}
+
+function advancePvpPrompt(player) {
+  if (player === "attacker" || player === "both") {
+    qteAttackerPrompt = qteAttackerQueue.shift() || randomDirection();
+    qteAttackerQueue.push(randomDirection());
+  }
+  if (player === "defender" || player === "both") {
+    qteDefenderPrompt = qteDefenderQueue.shift() || randomDirection();
+    qteDefenderQueue.push(randomDirection());
+  }
+  if (performance.now() - qteSessionStart >= qteSessionDuration) {
+    finishQTE();
+    return;
+  }
+  renderQTEWindow();
+  startPromptTimer();
 }
 
 function startPromptTimer() {
@@ -303,8 +567,14 @@ function startPromptTimer() {
     const ratio = 1 - elapsed / qteDuration;
     bar.style.width = Math.max(0, ratio * 100) + "%";
     if (elapsed >= qteDuration) {
-      registerMiss();
-      nextPromptOrFinish();
+      if (qteMode === "pvp") {
+        registerMiss("attacker");
+        registerMiss("defender");
+        advancePvpPrompt("both");
+      } else {
+        registerMiss();
+        nextPromptOrFinish();
+      }
     } else {
       qteTimerId = requestAnimationFrame(step);
     }
@@ -314,43 +584,109 @@ function startPromptTimer() {
 
 document.addEventListener("keydown", (e) => {
   if (!qteActive) return;
+  const elapsed = performance.now() - qteStartTime;
+  if (elapsed > qteDuration) return;
+
+  if (qteMode === "pvp") {
+    const expectedAttacker = PVP_KEYMAPS.attacker[qteAttackerPrompt];
+    const expectedDefender = PVP_KEYMAPS.defender[qteDefenderPrompt];
+
+    if (e.key === expectedAttacker) {
+      registerHit("attacker", elapsed);
+      advancePvpPrompt("attacker");
+    } else if (e.key === expectedDefender) {
+      registerHit("defender", elapsed);
+      advancePvpPrompt("defender");
+    } else if (ALL_PVP_KEYS.includes(e.key)) {
+      const player = Object.values(PVP_KEYMAPS.attacker).includes(e.key) ? "attacker" : "defender";
+      registerMiss(player);
+      advancePvpPrompt(player);
+    }
+    return;
+  }
+
   const currentPrompt = qteSequence[qteIndex];
   const expectedKey = qteSettings.keymap[currentPrompt];
-
-  const elapsed = performance.now() - qteStartTime;
-  if (elapsed > qteDuration) return; // already expired
+  const validKeys = Object.values(qteSettings.keymap);
 
   if (e.key === expectedKey) {
     registerHit(elapsed);
     nextPromptOrFinish();
-  } else {
-    // ignore wrong keys (or treat as miss if you want)
+  } else if (validKeys.includes(e.key)) {
+    registerMiss();
+    nextPromptOrFinish();
   }
 });
 
-function registerHit(elapsed) {
-  if (sHit) { try { sHit.currentTime = 0; sHit.play(); } catch(e){} }
-  qteHits++;
-  qteCombo++;
-  if (qteCombo > qteMaxCombo) qteMaxCombo = qteCombo;
+function registerHit(playerOrElapsed, elapsedMaybe) {
+  const elapsed = typeof playerOrElapsed === "number" ? playerOrElapsed : elapsedMaybe;
+  const player = typeof playerOrElapsed === "string" ? playerOrElapsed : null;
+
+  if (sHit) { try { sHit.currentTime = 0; sHit.play(); } catch (e) {} }
 
   const errorRatio = Math.abs(elapsed - qteDuration / 2) / (qteDuration / 2);
   let points = 0;
   if (errorRatio < 0.2) points = 100;
   else if (errorRatio < 0.5) points = 70;
   else points = 40;
+
+  if (qteMode === "pvp") {
+    if (player === "attacker") {
+      qteAttackerHits++;
+      qteAttackerCombo++;
+      if (qteAttackerCombo > qteAttackerMaxCombo) qteAttackerMaxCombo = qteAttackerCombo;
+      qteAttackerScore += points;
+      qteSharedPosition = Math.min(100, qteSharedPosition + 10);
+    } else {
+      qteDefenderHits++;
+      qteDefenderCombo++;
+      if (qteDefenderCombo > qteDefenderMaxCombo) qteDefenderMaxCombo = qteDefenderCombo;
+      qteDefenderScore += points;
+      qteSharedPosition = Math.max(0, qteSharedPosition - 10);
+    }
+    updateSharedBar();
+    return;
+  }
+
+  qteHits++;
+  qteCombo++;
+  if (qteCombo > qteMaxCombo) qteMaxCombo = qteCombo;
   qteScore += points;
   updateQteScoreDisplay();
 }
 
-function registerMiss() {
-  if (sMiss) { try { sMiss.currentTime = 0; sMiss.play(); } catch(e){} }
+function registerMiss(player) {
+  if (sMiss) { try { sMiss.currentTime = 0; sMiss.play(); } catch (e) {} }
+
+  if (qteMode === "pvp") {
+    if (player === "attacker") {
+      qteAttackerMisses++;
+      qteAttackerCombo = 0;
+      qteSharedPosition = Math.max(0, qteSharedPosition - 12);
+    } else {
+      qteDefenderMisses++;
+      qteDefenderCombo = 0;
+      qteSharedPosition = Math.min(100, qteSharedPosition + 12);
+    }
+    updateSharedBar();
+    return;
+  }
+
   qteMisses++;
   qteCombo = 0;
   updateQteScoreDisplay();
 }
 
 function nextPromptOrFinish() {
+  if (qteMode === "pvp") {
+    if (performance.now() - qteSessionStart >= qteSessionDuration) {
+      finishQTE();
+      return;
+    }
+    advancePvpPrompt("both");
+    return;
+  }
+
   qteIndex++;
   if (qteIndex >= qteSequence.length) {
     finishQTE();
@@ -358,6 +694,13 @@ function nextPromptOrFinish() {
     renderQTEWindow();
     startPromptTimer();
   }
+}
+
+function updateSharedBar() {
+  const fill = document.getElementById("qte-shared-bar");
+  fill.style.width = `${qteSharedPosition}%`;
+  document.getElementById("qte-attacker-score").textContent = qteAttackerScore;
+  document.getElementById("qte-defender-score").textContent = qteDefenderScore;
 }
 
 function updateQteScoreDisplay() {
@@ -373,10 +716,15 @@ async function finishQTE() {
   qteActive = false;
   document.getElementById("qte-overlay").style.display = "none";
 
-  const turnBefore = gameState.turn;
   const scores = {};
-  scores[turnBefore] = qteScore;
-  scores[turnBefore === "white" ? "black" : "white"] = 0;
+  if (qteMode === "pvp") {
+    scores[qteAttackerColor] = qteAttackerScore;
+    scores[qteDefenderColor] = qteDefenderScore;
+  } else {
+    const turnBefore = gameState.turn;
+    scores[turnBefore] = qteScore;
+    scores[turnBefore === "white" ? "black" : "white"] = 0;
+  }
 
   await apiPost(`/api/qte/${gameId}`, { scores });
   await loadState();
