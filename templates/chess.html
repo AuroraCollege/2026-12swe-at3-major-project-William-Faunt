@@ -136,6 +136,7 @@
   </div>
 
   <div id="board"></div>
+  <div id="turn-indicator" class="mt-2 mb-2 text-center fs-4 fw-bold" style="padding: 0.5rem; border-radius: 0.5rem;"></div>
   <div id="info" class="mt-3 fs-5 text-center"></div>
 </div>
 
@@ -289,9 +290,14 @@ async function loadState() {
       ? `${status.winner} wins by ${status.reason}`
       : `Draw by ${status.reason}`;
     document.getElementById("info").textContent = `${outcome}`;
+    document.getElementById("turn-indicator").textContent = "";
   } else {
     document.getElementById("info").textContent =
       `Turn: ${gameState.turn} | Mode: ${gameState.mode}`;
+    const turnIndicator = document.getElementById("turn-indicator");
+    turnIndicator.textContent = `${gameState.turn.charAt(0).toUpperCase() + gameState.turn.slice(1)}'s Turn`;
+    turnIndicator.style.backgroundColor = gameState.turn === "white" ? "#f8f9fa" : "#343a40";
+    turnIndicator.style.color = gameState.turn === "white" ? "#000" : "#fff";
   }
 
   if (!status.finished && mode === "pvc" && gameState.turn === gameState.ai_side) {

@@ -73,6 +73,7 @@
       </div>
     </div>
     <button id="save-keys" class="btn btn-secondary mt-2">Save Custom Keys</button>
+    <div id="key-error" class="text-danger mt-2" style="display:none;"></div>
   </div>
 
   <div id="qte-container"></div>
@@ -176,6 +177,15 @@ document.addEventListener("DOMContentLoaded", () => {
         Left: document.getElementById("key-left").value || "a",
         Right: document.getElementById("key-right").value || "d"
       };
+      const values = Object.values(customKeys);
+      const uniqueValues = new Set(values);
+      const errorEl = document.getElementById("key-error");
+      if (uniqueValues.size < 4) {
+        errorEl.textContent = "Error: All keys must be unique!";
+        errorEl.style.display = "block";
+        return;
+      }
+      errorEl.style.display = "none";
       const settings = JSON.parse(localStorage.getItem("qteSettings") || "{}");
       settings.customKeys = customKeys;
       settings.preset = "CUSTOM";
@@ -246,12 +256,16 @@ document.addEventListener("keydown", (e) => {
   if (!qteActive) return;
   const currentPrompt = qteSequence[0];
   const expectedKey = qteSettings.keymap[currentPrompt];
+  const validKeys = Object.values(qteSettings.keymap);
 
   const elapsed = performance.now() - qteStartTime;
   if (elapsed > qteDuration) return;
 
   if (e.key === expectedKey) {
     registerHit(elapsed);
+    nextPromptOrFinish();
+  } else if (validKeys.includes(e.key)) {
+    registerMiss();
     nextPromptOrFinish();
   }
 });
