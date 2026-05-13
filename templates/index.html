@@ -55,6 +55,7 @@
 
       <button id="save-settings" class="btn btn-success">Save Settings</button>
       <div id="save-status" class="mt-2 text-info"></div>
+      <div id="key-error" class="mt-2 text-danger" style="display:none;"></div>
     </div>
 
     <div class="col-md-6 mb-4">
@@ -115,6 +116,15 @@ document.getElementById("save-settings").addEventListener("click", () => {
       Left: document.getElementById("key-left").value || "a",
       Right: document.getElementById("key-right").value || "d"
     };
+    const values = Object.values(customKeys);
+    const uniqueValues = new Set(values);
+    const errorEl = document.getElementById("key-error");
+    if (uniqueValues.size < 4) {
+      errorEl.textContent = "Error: All keys must be unique!";
+      errorEl.style.display = "block";
+      return;
+    }
+    errorEl.style.display = "none";
   }
 
   const settings = { difficulty, preset, customKeys };
