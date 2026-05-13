@@ -55,19 +55,19 @@
   <div class="mb-3" id="custom-keys-section">
     <h5>Custom Keybinds</h5>
     <div class="row">
-      <div class="col-md-3">
+      <div class="col-md-3 d-flex flex-column align-items-center text-center">
         <label class="form-label">Up</label>
         <input id="key-up" class="form-control" maxlength="1" placeholder="Key" style="max-width: 60px;">
       </div>
-      <div class="col-md-3">
+      <div class="col-md-3 d-flex flex-column align-items-center text-center">
         <label class="form-label">Down</label>
         <input id="key-down" class="form-control" maxlength="1" placeholder="Key" style="max-width: 60px;">
       </div>
-      <div class="col-md-3">
+      <div class="col-md-3 d-flex flex-column align-items-center text-center">
         <label class="form-label">Left</label>
         <input id="key-left" class="form-control" maxlength="1" placeholder="Key" style="max-width: 60px;">
       </div>
-      <div class="col-md-3">
+      <div class="col-md-3 d-flex flex-column align-items-center text-center">
         <label class="form-label">Right</label>
         <input id="key-right" class="form-control" maxlength="1" placeholder="Key" style="max-width: 60px;">
       </div>
@@ -186,8 +186,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
+function generatePrompt() {
+  return DIRECTIONS[Math.floor(Math.random()*DIRECTIONS.length)];
+}
+
 function startRally() {
-  qteSequence = Array.from({length: 10}, () => DIRECTIONS[Math.floor(Math.random()*DIRECTIONS.length)]);
+  qteSequence = Array.from({length: 4}, () => generatePrompt());
   qteIndex = 0;
   qteActive = true;
   // Don't reset scores for rally, keep cumulative
@@ -208,12 +212,11 @@ function renderQTEWindow() {
 
   const windowSize = 3;
   for (let i = 0; i < windowSize + 1; i++) {
-    const idx = qteIndex + i;
-    if (idx >= qteSequence.length) break;
+    if (i >= qteSequence.length) break;
     const div = document.createElement("div");
     div.classList.add("qte-prompt");
     if (i === 0) div.classList.add("active-prompt");
-    div.textContent = qteSettings.keymap[qteSequence[idx]];
+    div.textContent = qteSettings.keymap[qteSequence[i]];
     container.appendChild(div);
   }
 }
@@ -241,7 +244,7 @@ function startPromptTimer() {
 
 document.addEventListener("keydown", (e) => {
   if (!qteActive) return;
-  const currentPrompt = qteSequence[qteIndex];
+  const currentPrompt = qteSequence[0];
   const expectedKey = qteSettings.keymap[currentPrompt];
 
   const elapsed = performance.now() - qteStartTime;
@@ -276,14 +279,10 @@ function registerMiss() {
 }
 
 function nextPromptOrFinish() {
-  qteIndex++;
-  if (qteIndex >= qteSequence.length) {
-    // Start new sequence for rally
-    startRally();
-  } else {
-    renderQTEWindow();
-    startPromptTimer();
-  }
+  qteSequence.shift();
+  qteSequence.push(generatePrompt());
+  renderQTEWindow();
+  startPromptTimer();
 }
 
 function updateQteScoreDisplay() {
