@@ -38,12 +38,100 @@ PIECE_VALUES = {
     chess.KING: 20000,
 }
 
+# Piece-square tables (from white's perspective, row 0 is rank 8, row 7 is rank 1)
+PAWN_TABLE = [
+    [0, 0, 0, 0, 0, 0, 0, 0],
+    [50, 50, 50, 50, 50, 50, 50, 50],
+    [10, 10, 20, 30, 30, 20, 10, 10],
+    [5, 5, 10, 25, 25, 10, 5, 5],
+    [0, 0, 0, 20, 20, 0, 0, 0],
+    [5, -5, -10, 0, 0, -10, -5, 5],
+    [5, 10, 10, -20, -20, 10, 10, 5],
+    [0, 0, 0, 0, 0, 0, 0, 0]
+]
+
+KNIGHT_TABLE = [
+    [-50, -40, -30, -30, -30, -30, -40, -50],
+    [-40, -20, 0, 0, 0, 0, -20, -40],
+    [-30, 0, 10, 15, 15, 10, 0, -30],
+    [-30, 5, 15, 20, 20, 15, 5, -30],
+    [-30, 0, 15, 20, 20, 15, 0, -30],
+    [-30, 5, 10, 15, 15, 10, 5, -30],
+    [-40, -20, 0, 5, 5, 0, -20, -40],
+    [-50, -40, -30, -30, -30, -30, -40, -50]
+]
+
+BISHOP_TABLE = [
+    [-20, -10, -10, -10, -10, -10, -10, -20],
+    [-10, 0, 0, 0, 0, 0, 0, -10],
+    [-10, 0, 5, 10, 10, 5, 0, -10],
+    [-10, 5, 5, 10, 10, 5, 5, -10],
+    [-10, 0, 10, 10, 10, 10, 0, -10],
+    [-10, 10, 10, 10, 10, 10, 10, -10],
+    [-10, 5, 0, 0, 0, 0, 5, -10],
+    [-20, -10, -10, -10, -10, -10, -10, -20]
+]
+
+ROOK_TABLE = [
+    [0, 0, 0, 0, 0, 0, 0, 0],
+    [5, 10, 10, 10, 10, 10, 10, 5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [0, 0, 0, 5, 5, 0, 0, 0]
+]
+
+QUEEN_TABLE = [
+    [-20, -10, -10, -5, -5, -10, -10, -20],
+    [-10, 0, 0, 0, 0, 0, 0, -10],
+    [-10, 0, 5, 5, 5, 5, 0, -10],
+    [-5, 0, 5, 5, 5, 5, 0, -5],
+    [0, 0, 5, 5, 5, 5, 0, -5],
+    [-10, 5, 5, 5, 5, 5, 0, -10],
+    [-10, 0, 5, 0, 0, 0, 0, -10],
+    [-20, -10, -10, -5, -5, -10, -10, -20]
+]
+
+KING_TABLE = [
+    [-30, -40, -40, -50, -50, -40, -40, -30],
+    [-30, -40, -40, -50, -50, -40, -40, -30],
+    [-30, -40, -40, -50, -50, -40, -40, -30],
+    [-30, -40, -40, -50, -50, -40, -40, -30],
+    [-20, -30, -30, -40, -40, -30, -30, -20],
+    [-10, -20, -20, -20, -20, -20, -20, -10],
+    [20, 20, 0, 0, 0, 0, 20, 20],
+    [20, 30, 10, 0, 0, 10, 30, 20]
+]
+
+PIECE_TABLES = {
+    chess.PAWN: PAWN_TABLE,
+    chess.KNIGHT: KNIGHT_TABLE,
+    chess.BISHOP: BISHOP_TABLE,
+    chess.ROOK: ROOK_TABLE,
+    chess.QUEEN: QUEEN_TABLE,
+    chess.KING: KING_TABLE,
+}
+
 def evaluate_board(board):
-    """Simple material evaluation."""
+    """Material and positional evaluation."""
     score = 0
     for square, piece in board.piece_map().items():
         value = PIECE_VALUES[piece.piece_type]
-        score += value if piece.color == chess.WHITE else -value
+        row, col = divmod(square, 8)
+        table = PIECE_TABLES[piece.piece_type]
+        if piece.color == chess.WHITE:
+            pos_value = table[row][col]
+        else:
+            pos_value = table[7 - row][col]  # Mirror for black
+        total_value = value + pos_value
+        score += total_value if piece.color == chess.WHITE else -total_value
+    
+    # Mobility bonus
+    mobility = len(list(board.legal_moves))
+    score += mobility * 5 if board.turn == chess.WHITE else -mobility * 5
+    
     return score
 
 def minimax(board, depth, alpha, beta, maximizing):
