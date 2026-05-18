@@ -128,6 +128,21 @@ def evaluate_board(board):
         total_value = value + pos_value
         score += total_value if piece.color == chess.WHITE else -total_value
     
+    # King safety and attack bonus.
+    white_king_sq = board.king(chess.WHITE)
+    black_king_sq = board.king(chess.BLACK)
+
+    if white_king_sq is not None:
+        white_king_attackers = len(board.attackers(chess.BLACK, white_king_sq))
+        score -= white_king_attackers * 20
+
+    if black_king_sq is not None:
+        black_king_attackers = len(board.attackers(chess.WHITE, black_king_sq))
+        score += black_king_attackers * 20
+
+    if board.is_check():
+        score += 120 if board.turn == chess.WHITE else -120
+
     # Mobility bonus
     mobility = len(list(board.legal_moves))
     score += mobility * 5 if board.turn == chess.WHITE else -mobility * 5

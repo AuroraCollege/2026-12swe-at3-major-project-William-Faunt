@@ -121,6 +121,11 @@
       justify-content: center;
       align-items: center;
     }
+    .piece-img {
+      width: 56px;
+      height: 56px;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body class="bg-dark text-light">
@@ -333,9 +338,26 @@ function createSquare(r, file, piece) {
   sq.classList.add((r + file) % 2 === 1 ? "dark" : "light");
   const coord = "abcdefgh"[file] + (8 - r);
   sq.dataset.square = coord;
-  sq.textContent = piece || "";
+  if (piece) {
+    const img = document.createElement('img');
+    img.classList.add('piece-img');
+    img.src = fenToSvg(piece);
+    img.alt = piece;
+    sq.appendChild(img);
+  } else {
+    sq.textContent = "";
+  }
   sq.addEventListener("click", () => onSquareClick(coord, sq));
   return sq;
+}
+
+function fenToSvg(piece) {
+  // Map a FEN piece letter to the static SVG filename in static/Pieces
+  if (!piece) return '';
+  const isWhite = piece === piece.toUpperCase();
+  const p = piece.toLowerCase();
+  const prefix = isWhite ? 'W' : 'B';
+  return `/static/Pieces/${prefix}${p}.svg`;
 }
 
 function parseFenPieceMap(fen) {
@@ -494,14 +516,21 @@ function startQTE(sequence, type = "normal", meta = {}) {
   startPromptTimer();
 }
 
-function createPvpPanel(label, prompt, queue, color) {
+function createPvpPanel(sideLabel, prompt, queue, color, role) {
   const wrapper = document.createElement("div");
   wrapper.classList.add("qte-player-column");
 
   const title = document.createElement("div");
   title.classList.add("qte-player-title");
-  title.textContent = `${label} (${color})`;
+  const roleLabel = role ? ` — ${role.charAt(0).toUpperCase() + role.slice(1)}` : '';
+  title.textContent = `${sideLabel}${roleLabel}`;
   wrapper.appendChild(title);
+
+  const keyHint = document.createElement('div');
+  keyHint.classList.add('text-muted');
+  keyHint.style.fontSize = '12px';
+  keyHint.textContent = role === 'attacker' ? 'Keys: WASD' : 'Keys: Arrow Keys';
+  wrapper.appendChild(keyHint);
 
   const active = document.createElement("div");
   active.classList.add("qte-prompt", "active-prompt");
@@ -525,10 +554,21 @@ function renderQTEWindow() {
   container.innerHTML = "";
 
   if (qteMode === "pvp") {
-    const attackerPanel = createPvpPanel("Attacker", qteAttackerPrompt, qteAttackerQueue, qteAttackerColor);
-    const defenderPanel = createPvpPanel("Defender", qteDefenderPrompt, qteDefenderQueue, qteDefenderColor);
-    container.appendChild(attackerPanel);
-    container.appendChild(defenderPanel);
+    // Always show White on the left and Black on the right regardless of roles
+    const whiteIsAttacker = qteAttackerColor === 'white';
+    const whitePrompt = whiteIsAttacker ? qteAttackerPrompt : qteDefenderPrompt;
+    const whiteQueue = whiteIsAttacker ? qteAttackerQueue : qteDefenderQueue;
+    const whiteRole = whiteIsAttacker ? 'attacker' : 'defender';
+
+    const blackIsAttacker = qteAttackerColor === 'black';
+    const blackPrompt = blackIsAttacker ? qteAttackerPrompt : qteDefenderPrompt;
+    const blackQueue = blackIsAttacker ? qteAttackerQueue : qteDefenderQueue;
+    const blackRole = blackIsAttacker ? 'attacker' : 'defender';
+
+    const whitePanel = createPvpPanel('White', whitePrompt, whiteQueue, 'white', whiteRole);
+    const blackPanel = createPvpPanel('Black', blackPrompt, blackQueue, 'black', blackRole);
+    container.appendChild(whitePanel);
+    container.appendChild(blackPanel);
     return;
   }
 
