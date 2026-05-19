@@ -248,6 +248,13 @@ let qteDefenderMaxCombo = 0;
 let qteAttackerColor = null;
 let qteDefenderColor = null;
 let qteSharedPosition = 50;
+// PvP per-color prompt state (left=White, right=Black)
+let qteWhitePrompt = null;
+let qteWhiteQueue = [];
+let qteWhiteRole = null;
+let qteBlackPrompt = null;
+let qteBlackQueue = [];
+let qteBlackRole = null;
 
 // Sounds (you can replace with real files)
 const sHit = new Audio();
@@ -529,7 +536,7 @@ function createPvpPanel(sideLabel, prompt, queue, color, role) {
   const keyHint = document.createElement('div');
   keyHint.classList.add('text-muted');
   keyHint.style.fontSize = '12px';
-  keyHint.textContent = role === 'attacker' ? 'Keys: WASD' : 'Keys: Arrow Keys';
+  keyHint.textContent = sideLabel === 'White' ? 'Keys: WASD' : 'Keys: Arrow Keys';
   wrapper.appendChild(keyHint);
 
   const active = document.createElement("div");
@@ -564,6 +571,14 @@ function renderQTEWindow() {
     const blackPrompt = blackIsAttacker ? qteAttackerPrompt : qteDefenderPrompt;
     const blackQueue = blackIsAttacker ? qteAttackerQueue : qteDefenderQueue;
     const blackRole = blackIsAttacker ? 'attacker' : 'defender';
+
+    // expose current color-based prompts/roles for input handling
+    qteWhitePrompt = whitePrompt;
+    qteWhiteQueue = whiteQueue;
+    qteWhiteRole = whiteRole;
+    qteBlackPrompt = blackPrompt;
+    qteBlackQueue = blackQueue;
+    qteBlackRole = blackRole;
 
     const whitePanel = createPvpPanel('White', whitePrompt, whiteQueue, 'white', whiteRole);
     const blackPanel = createPvpPanel('Black', blackPrompt, blackQueue, 'black', blackRole);
@@ -634,19 +649,29 @@ document.addEventListener("keydown", (e) => {
   if (elapsed > qteDuration) return;
 
   if (qteMode === "pvp") {
-    const expectedAttacker = PVP_KEYMAPS.attacker[qteAttackerPrompt];
-    const expectedDefender = PVP_KEYMAPS.defender[qteDefenderPrompt];
+    // Left side (White) always uses WASD; Right side (Black) always uses Arrow keys.
+    const expectedWhite = PVP_KEYMAPS.attacker[qteWhitePrompt];
+    const expectedBlack = PVP_KEYMAPS.defender[qteBlackPrompt];
 
-    if (e.key === expectedAttacker) {
-      registerHit("attacker", elapsed);
-      advancePvpPrompt("attacker");
-    } else if (e.key === expectedDefender) {
-      registerHit("defender", elapsed);
-      advancePvpPrompt("defender");
+    if (e.key === expectedWhite) {
+      const role = qteWhiteRole || 'attacker';
+      registerHit(role, elapsed);
+      advancePvpPrompt(role);
+    } else if (e.key === expectedBlack) {
+      const role = qteBlackRole || 'defender';
+      registerHit(role, elapsed);
+      advancePvpPrompt(role);
     } else if (ALL_PVP_KEYS.includes(e.key)) {
-      const player = Object.values(PVP_KEYMAPS.attacker).includes(e.key) ? "attacker" : "defender";
-      registerMiss(player);
-      advancePvpPrompt(player);
+      const isWASD = Object.values(PVP_KEYMAPS.attacker).includes(e.key);
+      if (isWASD) {
+        const role = qteWhiteRole || 'attacker';
+        registerMiss(role);
+        advancePvpPrompt(role);
+      } else {
+        const role = qteBlackRole || 'defender';
+        registerMiss(role);
+        advancePvpPrompt(role);
+      }
     }
     return;
   }
