@@ -183,13 +183,52 @@
 </div>
 
 <script>
+  function isDisallowedQteKey(key) {
+    if (!key || typeof key !== "string") return true;
+    const trimmed = key.trim();
+    if (trimmed.length === 0) return true;
+    const invalid = new Set([
+      " ", "Spacebar", "Space", "Enter", "Tab", "Escape", "Esc",
+      "Shift", "Control", "Alt", "Meta", "CapsLock", "NumLock",
+      "ScrollLock", "Pause", "ContextMenu", "OS", "Insert", "Home",
+      "End", "PageUp", "PageDown", "F1", "F2", "F3", "F4", "F5",
+      "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14",
+      "F15", "F16", "F17", "F18", "F19", "F20", "F21", "F22",
+      "F23", "F24", "BrowserBack", "BrowserForward", "BrowserRefresh",
+      "BrowserStop", "BrowserSearch", "BrowserFavorites", "BrowserHome",
+      "VolumeMute", "VolumeDown", "VolumeUp", "MediaTrackNext",
+      "MediaTrackPrevious", "MediaStop", "MediaPlayPause", "PrintScreen",
+      "Unidentified", "Dead"
+    ]);
+    return invalid.has(key);
+  }
+
+  function sanitizeCustomKeymap(keys) {
+    if (!keys || typeof keys !== "object") return null;
+    const customKeys = {
+      Up: keys.Up || "",
+      Down: keys.Down || "",
+      Left: keys.Left || "",
+      Right: keys.Right || ""
+    };
+    const values = Object.values(customKeys);
+    if (values.some(k => isDisallowedQteKey(k))) return null;
+    if (new Set(values).size < 4) return null;
+    return customKeys;
+  }
+
   function loadQteSettings() {
   const stored = JSON.parse(localStorage.getItem("qteSettings") || "{}");
   const difficulty = stored.difficulty || "medium";
   const preset = stored.preset || "WASD";
   let keymap;
   if (preset === "CUSTOM" && stored.customKeys) {
-    keymap = stored.customKeys;
+    const customMap = sanitizeCustomKeymap(stored.customKeys);
+    if (customMap) {
+      keymap = customMap;
+    } else {
+      keymap = { Up: "w", Down: "s", Left: "a", Right: "d" };
+    }
   } else if (preset === "ARROWS") {
     keymap = { Up: "ArrowUp", Down: "ArrowDown", Left: "ArrowLeft", Right: "ArrowRight" };
   } else {

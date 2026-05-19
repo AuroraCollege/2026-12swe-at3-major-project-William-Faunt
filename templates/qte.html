@@ -93,13 +93,52 @@
 </div>
 
 <script>
+  function isDisallowedQteKey(key) {
+    if (!key || typeof key !== "string") return true;
+    const trimmed = key.trim();
+    if (trimmed.length === 0) return true;
+    const invalid = new Set([
+      " ", "Spacebar", "Space", "Enter", "Tab", "Escape", "Esc",
+      "Shift", "Control", "Alt", "Meta", "CapsLock", "NumLock",
+      "ScrollLock", "Pause", "ContextMenu", "OS", "Insert", "Home",
+      "End", "PageUp", "PageDown", "F1", "F2", "F3", "F4", "F5",
+      "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14",
+      "F15", "F16", "F17", "F18", "F19", "F20", "F21", "F22",
+      "F23", "F24", "BrowserBack", "BrowserForward", "BrowserRefresh",
+      "BrowserStop", "BrowserSearch", "BrowserFavorites", "BrowserHome",
+      "VolumeMute", "VolumeDown", "VolumeUp", "MediaTrackNext",
+      "MediaTrackPrevious", "MediaStop", "MediaPlayPause", "PrintScreen",
+      "Unidentified", "Dead"
+    ]);
+    return invalid.has(key);
+  }
+
+  function sanitizeCustomKeymap(keys) {
+    if (!keys || typeof keys !== "object") return null;
+    const customKeys = {
+      Up: keys.Up || "",
+      Down: keys.Down || "",
+      Left: keys.Left || "",
+      Right: keys.Right || ""
+    };
+    const values = Object.values(customKeys);
+    if (values.some(k => isDisallowedQteKey(k))) return null;
+    if (new Set(values).size < 4) return null;
+    return customKeys;
+  }
+
   function loadQteSettings() {
   const stored = JSON.parse(localStorage.getItem("qteSettings") || "{}");
   const difficulty = stored.difficulty || "medium";
   const preset = stored.preset || "WASD";
   let keymap;
   if (preset === "CUSTOM" && stored.customKeys) {
-    keymap = stored.customKeys;
+    const sanitized = sanitizeCustomKeymap(stored.customKeys);
+    if (sanitized) {
+      keymap = sanitized;
+    } else {
+      keymap = { Up: "w", Down: "s", Left: "a", Right: "d" };
+    }
   } else if (preset === "ARROWS") {
     keymap = { Up: "ArrowUp", Down: "ArrowDown", Left: "ArrowLeft", Right: "ArrowRight" };
   } else {
@@ -140,11 +179,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Load custom keys into inputs
   const stored = JSON.parse(localStorage.getItem("qteSettings") || "{}");
-  const customKeys = stored.customKeys || {};
-  document.getElementById("key-up").value = customKeys.Up || "w";
-  document.getElementById("key-down").value = customKeys.Down || "s";
-  document.getElementById("key-left").value = customKeys.Left || "a";
-  document.getElementById("key-right").value = customKeys.Right || "d";
+  const loadedKeys = sanitizeCustomKeymap(stored.customKeys) || { Up: "w", Down: "s", Left: "a", Right: "d" };
+  document.getElementById("key-up").value = loadedKeys.Up;
+  document.getElementById("key-down").value = loadedKeys.Down;
+  document.getElementById("key-left").value = loadedKeys.Left;
+  document.getElementById("key-right").value = loadedKeys.Right;
+
+  ["key-up","key-down","key-left","key-right"].forEach(id => {
+    const input = document.getElementById(id);
+    input.addEventListener("keydown", (e) => {
+      if (isDisallowedQteKey(e.key)) {
+        e.preventDefault();
+        const errorEl = document.getElementById("key-error");
+        errorEl.textContent = "Invalid key. Space and system keys are not allowed.";
+        errorEl.style.display = "block";
+        return;
+      }
+      document.getElementById("key-error").style.display = "none";
+    });
+  });
 
   const startBtn = document.getElementById("start-qte");
   if (startBtn) {
@@ -178,8 +231,14 @@ document.addEventListener("DOMContentLoaded", () => {
         Right: document.getElementById("key-right").value || "d"
       };
       const values = Object.values(customKeys);
-      const uniqueValues = new Set(values);
       const errorEl = document.getElementById("key-error");
+      const invalidKey = values.find(k => isDisallowedQteKey(k));
+      if (invalidKey) {
+        errorEl.textContent = `Invalid key: ${invalidKey}. Space and system keys are not allowed.`;
+        errorEl.style.display = "block";
+        return;
+      }
+      const uniqueValues = new Set(values);
       if (uniqueValues.size < 4) {
         errorEl.textContent = "Error: All keys must be unique!";
         errorEl.style.display = "block";
