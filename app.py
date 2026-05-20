@@ -62,4 +62,4 @@ def ai_move(gid):
     return jsonify({"state": game.to_dict()})
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5007)
+    app.run
